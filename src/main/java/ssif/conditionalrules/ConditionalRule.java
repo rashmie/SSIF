@@ -1,0 +1,757 @@
+package ssif.conditionalrules;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Table;
+
+import au.com.bytecode.opencsv.CSVWriter;
+import ssif.exhaustiveSSIF.tagging.AntonymTagging;
+import ssif.exhaustiveSSIF.tagging.SubConceptTagging;
+import ssif.exhaustiveSSIF.tagging.Tagging;
+import ssif.model.Antonym;
+import ssif.model.Element;
+import ssif.model.ElementList;
+import ssif.model.Term;
+
+/**
+ * @author Rashmie Abeysinghe
+ *
+ */
+public abstract class ConditionalRule {
+
+	protected Tagging tagged_terms;
+	protected Map<String, Term> term_map;
+//	protected BufferedWriter bw;
+	protected Map<String, Term> label_terms;	//hashmap containing the label of a term as the key and the term as the value.
+	protected Set<Inconsistency> obtainedRules;
+	
+	
+	public ConditionalRule(Tagging tagged_terms) {
+		super();
+		this.tagged_terms = tagged_terms;
+		//this.term_map = term_map;
+		fillTermMapFromList();
+		fillLabelTerms();
+		obtainedRules = new HashSet<Inconsistency>();
+	}
+	
+	public ConditionalRule()
+	{
+		obtainedRules = new HashSet<Inconsistency>();
+	}
+	
+	protected void fillLabelTerms()
+	{
+		label_terms = new HashMap<String, Term>();
+		for(Term t: tagged_terms.getTerms())
+			label_terms.put(t.getLabel(), t);
+	}
+	
+	public void fillTermMapFromList()
+	{
+		term_map = new HashMap<String, Term>();
+		//System.out.println(tagged_terms.getTerms());
+		for(Term t: tagged_terms.getTerms())
+			this.term_map.put(t.getID(), t);
+	}
+	
+	public void writeObtainedRulesToTextFile(String output) throws IOException
+	{
+		BufferedWriter bw = new BufferedWriter(new FileWriter(output));
+		
+		for(Inconsistency or : obtainedRules)
+		{
+			bw.write(or.getChild().getIDLabel() +"\nIS-A\n"+ or.getParent().getIDLabel());
+			bw.write(or.getDescription());
+			bw.newLine();
+			bw.newLine();
+		}
+		
+		bw.close();
+	}
+	
+	public void writeObtainedRulesToCSVFile(String output) throws IOException
+	{
+		CSVWriter bw = new CSVWriter(new FileWriter(output));
+		String[] line = {"Left", "Right", "Description"};
+		for(Inconsistency or : obtainedRules)
+		{
+			line[0] = or.getChild().getIDLabel();
+			line[1] = or.getParent().getIDLabel();
+			line[2] = or.getDescription();
+			bw.writeNext(line);
+		}
+		bw.close();
+	}
+	
+	//If A->B and C->B are suggested where A->C is given, then A->B is already implied transitively. So, only the more general rule C->B needs to be kept. 
+	//Also if C->A and C->B are suggested where A->B is given, then C->B is already implied transitively (C->A->B). So, the more general rule C->A only have to suggested.
+	public void restrictRulesToGeneralOnes()		
+	{
+		Inconsistency temp;
+		Set<Inconsistency> rulesToRemove = new HashSet<Inconsistency>();
+		
+		//If A->B and C->B are suggested where A->C is given, then A->B is already implied transitively. So, only the more general rule C->B needs to be kept. 
+		for(Inconsistency or : obtainedRules)
+		{
+			for(Term left_parent: or.getChild().getAll_parents())	
+			{
+				temp = new Inconsistency(left_parent, or.getParent());
+				if(!rulesToRemove.contains(temp) && obtainedRules.contains(temp))
+				{
+					rulesToRemove.add(or);
+					break;
+				}
+			}
+			
+			//If C->A and C->B are suggested where A->B is given, then C->B is already implied transitively (C->A->B). So, the more general rule C->A only have to suggested.
+			for(Term right_parent: or.getParent().getAll_parents()) 
+			{
+				temp = new Inconsistency(or.getChild(), right_parent);
+				if(!rulesToRemove.contains(temp) && obtainedRules.contains(temp))
+					rulesToRemove.add(temp);
+			}	
+		}
+		obtainedRules.removeAll(rulesToRemove);
+		System.out.println("Total rules obtained: "+obtainedRules.size());
+	}
+
+	//SLCS gets the specific LCS: ABCDEF and PQRCDES, SLCS = CDEF if F is-a S
+	public ElementList findSLCS(ElementList el1, ElementList el2)			// ABCDEF, PBQDF. LCS = BDF
+	{
+		Table<Integer, Integer, ElementList>  lcs = HashBasedTable.create();
+		ElementList temp, current, lcs1, lcs2;
+		Element element1, element2;
+			
+		//System.out.println(el1.ElementListAsAString()+": "+el2.ElementListAsAString());
+		for(int i=el1.getSize()-1; i>=0; i--)
+		{
+			for(int j=el2.getSize()-1; j>=0; j--)
+			{
+//				element1 = el1.getElement(i);
+//				element2 = el2.getElement(j);
+				if((element1 = el1.getElement(i))==null || (element2 = el2.getElement(j))==null)
+					continue;
+				
+				else if(element1.getElementName().equals(element2.getElementName()))		//if two elements are equal
+				{
+					//System.out.println("Equal == "+element1.getElementName()+": "+element2.getElementName());
+					current = new ElementList();
+					current.putElements(element1);
+					if((temp=lcs.get(i+1, j+1))!=null)
+					{
+						current.putAll(temp);
+//						lcs.put(i, j, current);
+					}
+					lcs.put(i, j, current);
+				}
+				else if(element1.isSubconcept() && element2.isSubconcept())			//if two elements have a subsumption relationship
+				{
+					//System.out.println("Subsumption == "+element1.getElementName()+": "+element2.getElementName());
+					if(term_map.get(element1.getElementName()).isParent(term_map.get(element2.getElementName())))
+					{
+						current = new ElementList();
+						current.putElements(element1);	//consider the child
+						if((temp = lcs.get(i+1, j+1))!=null)
+							current.putAll(temp);
+						
+						lcs.put(i, j, current);
+						
+					}
+					else if(term_map.get(element2.getElementName()).isParent(term_map.get(element1.getElementName())))
+					{
+						current = new ElementList();
+						current.putElements(element2);	//consider the child
+						if((temp = lcs.get(i+1, j+1))!=null)
+							current.putAll(temp);
+						
+						lcs.put(i, j, current);
+					}
+				}
+				else		//if elements are not equal and does not have a subsumption relationship.
+				{
+					//System.out.println("Not equal/subsumption == "+element1.getElementName()+": "+element2.getElementName());
+					if((lcs1 = lcs.get(i, j+1))!=null && (lcs2 = lcs.get(i+1, j))!=null)
+					{
+						if((lcs1.getSize() >= lcs2.getSize()))
+							lcs.put(i, j, lcs1);
+						else
+							lcs.put(i, j, lcs2);
+					}
+					else if(lcs1!=null)
+						lcs.put(i, j, lcs1);
+					else if((lcs2 = lcs.get(i+1, j))!=null)
+						lcs.put(i, j, lcs2);
+				}
+			}
+		}
+		return lcs.get(0, 0);
+	}
+	
+	//returns the table that is constructed during LCS calculation
+	public Table<Integer, Integer, ElementList> GLCS_table(ElementList el1, ElementList el2)
+	{
+		Table<Integer, Integer, ElementList>  lcs = HashBasedTable.create();
+		ElementList temp, current, lcs1, lcs2;
+		Element element1, element2;
+			
+		//System.out.println(el1.ElementListAsAString()+": "+el2.ElementListAsAString());
+		for(int i=el1.getSize()-1; i>=0; i--)
+		{
+			for(int j=el2.getSize()-1; j>=0; j--)
+			{
+//				element1 = el1.getElement(i);
+//				element2 = el2.getElement(j);
+				if((element1 = el1.getElement(i))==null || (element2 = el2.getElement(j))==null)
+					continue;
+				
+				else if(element1.getElementName().equals(element2.getElementName()))		//if two elements are equal
+				{
+					//System.out.println("Equal == "+element1.getElementName()+": "+element2.getElementName());
+					current = new ElementList();
+					current.putElements(element1);
+					if((temp=lcs.get(i+1, j+1))!=null)
+					{
+						current.putAll(temp);
+						//lcs.put(i, j, current);
+					}
+					lcs.put(i, j, current);
+					//System.out.println("Yeah!!");
+				}
+				else if(element1.isSubconcept() && element2.isSubconcept())			//if two elements have a subsumption relationship
+				{
+					//System.out.println("Subsumption == "+element1.getElementName()+": "+element2.getElementName());
+					if(term_map.get(element1.getElementName()).isParent(term_map.get(element2.getElementName())))
+					{
+						current = new ElementList();
+						current.putElements(element2);	//consider the parent
+						if((temp = lcs.get(i+1, j+1))!=null)
+							current.putAll(temp);
+						
+						lcs.put(i, j, current);
+						
+					}
+					else if(term_map.get(element2.getElementName()).isParent(term_map.get(element1.getElementName())))
+					{
+						current = new ElementList();
+						current.putElements(element1);	//consider the parent
+						if((temp = lcs.get(i+1, j+1))!=null)
+							current.putAll(temp);
+						
+						lcs.put(i, j, current);
+					}
+				}
+				else		//if elements are not equal and does not have a subsumption relationship.
+				{
+					//System.out.println("Not equal/subsumption == "+element1.getElementName()+": "+element2.getElementName());
+					if((lcs1 = lcs.get(i, j+1))!=null && (lcs2 = lcs.get(i+1, j))!=null)
+					{
+						if((lcs1.getSize() >= lcs2.getSize()))
+							lcs.put(i, j, lcs1);
+						else
+							lcs.put(i, j, lcs2);
+					}
+					else if(lcs1!=null)
+						lcs.put(i, j, lcs1);
+					else if((lcs2 = lcs.get(i+1, j))!=null)
+						lcs.put(i, j, lcs2);
+				}
+			}
+		}
+		//System.out.println(lcs.size());
+		return lcs;
+	}
+	
+	//GLCS gets the general LCS: ABCDEF and PQRCDES, GLCS = CDES if F is-a S
+	public ElementList findGLCS(ElementList el1, ElementList el2)			// ABCDEF, PBQDF. LCS = BDF
+	{
+		Table<Integer, Integer, ElementList>  lcs = GLCS_table(el1, el2);
+		return lcs.get(0, 0);
+	}
+	
+	public Element intersectionOfTwoElements(Element e1, Element e2)
+	{	
+		if(e1.getElementName().equals(e2.getElementName()))
+			return e1;
+		else if(e1.isSubconcept() && e2.isSubconcept())
+		{
+			if(term_map.get(e1.getElementName()).isParent(term_map.get(e2.getElementName())))
+				return e1;
+			else if(term_map.get(e2.getElementName()).isParent(term_map.get(e1.getElementName())))
+				return e2;
+			else
+				return null;
+		}
+		else
+			return null;
+		
+	}
+	
+	public ElementList intersection(ElementList x, ElementList y)
+	{
+		ElementList intersect = new ElementList();
+		Element intersectOfTwoElements;
+		ElementList slcs;
+		
+		//System.out.println(x.ElementListAsAString()+": "+y.ElementListAsAString());
+		
+		if((slcs = findSLCS(x,y))!=null)
+		{
+			if((x.getSize() == y.getSize()) && (x.getSize() == slcs.getSize()))	//lengths of x and y and their LCS is equal
+			{
+				for(int i=0; i<x.getSize();i++)
+				{
+					if((intersectOfTwoElements = intersectionOfTwoElements(x.getElement(i), y.getElement(i)))!=null)	//this always happens. When x=y=lcs(x,y), each element of x and y are equal or they have a subsumtion relationship between them.
+					{
+						//System.out.println(x.getElement(i).getElementName()+" ** "+y.getElement(i).getElementName()+" ** "+intersectOfTwoElements.getElementName());
+						intersect.putElements(intersectOfTwoElements);
+					}
+//					else
+//						return null;
+				}
+			}
+			else if(slcs.getSize() == x.getSize() && slcs.getSize() < y.getSize())
+			{
+				boolean parent_found = false;
+				for(Element y_element: y)
+				{
+					if(slcs.contains(y_element))
+						intersect.putElements(y_element);
+					
+					else if(y_element.isSubconcept())
+					{
+						for(Element lcs_element:slcs)
+						{
+							if(lcs_element.isSubconcept() && term_map.get(lcs_element.getElementName()).isParent(term_map.get(y_element.getElementName())))
+							{
+								intersect.putElements(lcs_element);
+								parent_found = true;
+								break;
+							}
+						}
+						if(!parent_found)
+						{
+							intersect.putElements(y_element);
+						}
+					}
+					else 
+					{
+						intersect.putElements(y_element);
+					}
+				}
+			}
+			else if(slcs.getSize() == y.getSize() && slcs.getSize() < x.getSize())
+			{
+				boolean parent_found = false;
+				for(Element x_element: x)
+				{
+					if(slcs.contains(x_element))
+						intersect.putElements(x_element);
+					
+					else if(x_element.isSubconcept())
+					{
+						for(Element lcs_element:slcs)
+						{
+							if(lcs_element.isSubconcept() && term_map.get(lcs_element.getElementName()).isParent(term_map.get(x_element.getElementName())))
+							{
+								intersect.putElements(lcs_element);
+								parent_found = true;
+								break;
+							}
+						}
+						if(!parent_found)
+						{
+							intersect.putElements(x_element);
+						}
+					}
+					else 
+					{
+						intersect.putElements(x_element);
+					}
+				}
+			}
+			else if(slcs.getSize() != y.getSize() && slcs.getSize() != x.getSize())
+			{
+				//System.out.println(x.ElementListAsAString()+": "+y.ElementListAsAString()+" ** "+lcs.ElementListAsAString());
+			}
+			else
+				return null;
+		}
+		if (intersect.getSize()==0)
+			return null;
+		return intersect;
+	}
+	
+	public Element unionOfTwoElements(Element e1, Element e2)
+	{	
+		if(e1.getElementName().equals(e2.getElementName()))
+			return e1;
+		else if(e1.isSubconcept() && e2.isSubconcept())
+		{
+			if(term_map.get(e1.getElementName()).isParent(term_map.get(e2.getElementName())))
+				return e2;
+			else if(term_map.get(e2.getElementName()).isParent(term_map.get(e1.getElementName())))
+				return e1;
+			else
+				return null;
+		}
+		else
+			return null;
+		
+	}
+	
+	public ElementList union(ElementList x, ElementList y)
+	{
+		ElementList union = new ElementList();
+		Element unionOfTwoElements;
+		ElementList glcs;
+		
+		if((glcs = findGLCS(x,y))!=null)
+		{
+			if((x.getSize() == y.getSize()) && (x.getSize() == glcs.getSize()))	//lengths of x and y and their GLCS is equal
+			{
+				for(int i=0; i<x.getSize();i++)
+				{
+					if((unionOfTwoElements = unionOfTwoElements(x.getElement(i), y.getElement(i)))!=null)	//this always happens. When x=y=lcs(x,y), each element of x and y are equal or they have a subsumption relationship between them.
+					{
+						//System.out.println(x.getElement(i).getElementName()+" ** "+y.getElement(i).getElementName()+" ** "+intersectOfTwoElements.getElementName());
+						union.putElements(unionOfTwoElements);
+					}
+//					else
+//						return null;
+				}
+			}
+			else if((glcs.getSize() == x.getSize() && glcs.getSize() < y.getSize()) || (glcs.getSize() == y.getSize() && glcs.getSize() < x.getSize()))
+				union.putAll(glcs);
+
+			else if(glcs.getSize() != y.getSize() && glcs.getSize() != x.getSize())
+				return null;
+			else
+				return null;
+		}
+		if (union.getSize()==0)
+			return null;
+		return union;
+	}
+	
+	public void addRule(Term child, Term parent, String desc, String type, boolean obtainExistingRules)
+	{	
+		if(!obtainExistingRules && !child.equals(parent) && !child.isParent(parent) && child.isBelongToSameSubheirarchy(parent))
+		{
+			Inconsistency newRule;
+			newRule = new Inconsistency(child, parent, desc, type);
+			if(!obtainedRules.contains(newRule))
+				obtainedRules.add(newRule);
+		}
+		else if(obtainExistingRules && child.isParent(parent))
+		{
+			Inconsistency newRule;
+			newRule = new Inconsistency(child, parent, desc, type);
+			if(!obtainedRules.contains(newRule))
+				obtainedRules.add(newRule);
+		}
+	}
+	
+	//this method checks whether the subconcept sc of term t has other overlapping subconcepts of t.
+	public boolean isOverlappingTerms_SameOntology(Term t, Term sc)
+	{
+		ArrayList<Term> subconcepts = new ArrayList<>(t.getSubconcepts());
+		subconcepts.remove(sc);
+		String original_label = " "+t.getLabel()+" ";
+		SubConceptTagging sct = new SubConceptTagging();	//because we need countOccurences() method of SubConcept class
+		
+		String id_replaced_label = original_label.replaceAll("(?i)" + Pattern.quote(" "+sc.getLabel()+" "), " "+sc.getID()+" ");
+		
+		for(int j=0; j< subconcepts.size(); j++)
+		{			
+			//if number of occurences of the subcon2 label is different between the original_label and id_replaced_label of subcon1, then an overlap has occured.
+			if((sct.countOccurences(original_label, subconcepts.get(j).getLabel()) - sct.countOccurences(id_replaced_label, subconcepts.get(j).getLabel()))!=0)
+				return true;
+		}	
+		return false;
+	}
+	
+	public int getStartIndexOfSubConcept(ElementList el_t, int subconcept_element_index)
+	{
+		String term_label_with_subconceptID = "";
+		for(int i=0; i< el_t.getSize(); i++)
+		{
+			if(!el_t.getElement(i).isSubconcept() || i==subconcept_element_index)
+				term_label_with_subconceptID += el_t.getElement(i).getElementName()+" ";
+			else
+				term_label_with_subconceptID += term_map.get(el_t.getElement(i).getElementName()).getLabel()+" ";
+		}
+		term_label_with_subconceptID = term_label_with_subconceptID.trim();
+		//System.out.println(term_label_with_subconceptID);
+		//if(el_t.getElement(subconcept_element_index).getElementName().equals("GO_0016020"))
+		//	System.out.println(el_t.ElementListAsAString()+"\t|| "+subconcept_element_index+"\t||"+term_label_with_subconceptID+"\t||"+term_label_with_subconceptID.indexOf(el_t.getElement(subconcept_element_index).getElementName()));
+		//starting and ending string indexes of the specific subconcept ID (specified by subconcept_element_index of the ElementList el_t)
+		return term_label_with_subconceptID.indexOf(el_t.getElement(subconcept_element_index).getElementName());
+	}
+	
+	//int startIndex1, int endIndex1 should belong to the subconcept of interest
+	private boolean isIndexesOverLapping(int startIndex1, int endIndex1, int startIndex2, int endIndex2)
+	{
+		if(endIndex1<startIndex2 || startIndex1>endIndex2)
+			return false;
+//		else if(startIndex2==startIndex1 && endIndex2==endIndex1)
+//			return false;
+//		else if(startIndex2>=startIndex1 && endIndex2<=endIndex1)		// subconcept indexes contained inside subconcept of interest indexes
+//			return false;
+//		else if(startIndex2<=startIndex1 && endIndex2>=endIndex1)
+//			return false;
+		return true;
+	}
+	
+	//int subconcept_element_index: the position in the elementlist el_t of the subconcept of interest
+	public boolean isOverlappingTerms_SameOntology2(Term t, ElementList el_t, int subconceptOfInterest_element_index)
+	{
+		//done//replace all other subconcepts IDs with their labels other than the subconcept of interest
+		//search the starting string index of the ID of subconcept of interest = starting string index of the label of subconcept of interest
+		//ending string index of the label of subconcept of interest = starting index + length of the label of subconcept of interest
+		//get the starting and ending string indexes of all other subconcepts
+		//if the indexes overlap, but other subconcept indexes does not lie within the indexes of the subconcept of interest indexes, then an overlap exists
+
+		//starting and ending string indexes of the ID of subconcept of interest
+		int start_index_of_subconcept_of_interest=getStartIndexOfSubConcept(el_t, subconceptOfInterest_element_index);	
+		int end_index_of_subconcept_of_interest=start_index_of_subconcept_of_interest + term_map.get(el_t.getElement(subconceptOfInterest_element_index).getElementName()).getLabel().length()-1;	//end index = start index + length
+		//System.out.println(t.getIDLabel()+"\t || "+term_map.get(el_t.getElement(subconceptOfInterest_element_index).getElementName()).getIDLabel()+"|| \t ||"+subconceptOfInterest_element_index+"\t || "+start_index_of_subconcept_of_interest);
+		for(Term sc: t.getSubconcepts())
+		{
+			if(sc.equals(term_map.get(el_t.getElement(subconceptOfInterest_element_index).getElementName())))
+				continue;
+			int i=-1;
+			while(true)
+			{
+				i=t.getLabel().indexOf(sc.getLabel(), i+1);
+				if(i==-1)
+					break;
+				if(isIndexesOverLapping(start_index_of_subconcept_of_interest, end_index_of_subconcept_of_interest, i, i+sc.getLabel().length()-1))
+				{
+					//System.out.println("AAAA");
+					//System.out.println(t.getIDLabel()+"\t"+term_map.get(el_t.getElement(subconceptOfInterest_element_index).getElementName()).getIDLabel()+"\t"+sc.getIDLabel());
+					//System.out.println(start_index_of_subconcept_of_interest+"\t"+ end_index_of_subconcept_of_interest+"\t"+i+"\t"+(i+sc.getLabel().length()-1));
+					return true;
+				}
+			}
+		}
+		//System.out.println("BBBB");
+		return false;
+	}
+	
+	public Set<String> loadExternalOntologyLabels(String input) throws IOException
+	{
+		Set<String> external_ontology_labels = new HashSet<String>();
+		BufferedReader br = new BufferedReader(new FileReader(input));
+		Pattern p = Pattern.compile("[^a-zA-Z0-9\\s\\-\\_]");		//do not match alphanumeric characters, spaces, dashes and underscores
+    		Matcher m;
+		String line;
+		while((line=br.readLine())!=null)
+		{
+			String[] tokens=line.split("\t");
+	    		if(tokens.length>1)
+	    		{
+	    			m = p.matcher(tokens[1]);
+	    			//label = tokens[1].replace("_", " ");		//roots of GO sub-hierarchies are specified as cellular_compenent, biological_process, molecular_function (with underscores). We are splitting by spaces, hence, they need to be converted.
+	    			if(!m.find())	//valid term
+	    				external_ontology_labels.add(tokens[1]);
+	    		}
+		}    	
+		br.close();
+		return external_ontology_labels;
+	}
+	
+	public ArrayList<String> findExternalOntologySubconcepts(Term t, Set<String> externalOntologyLabels)
+	{   	
+		String cons=" "+t.getLabel()+" ";
+    		
+		ArrayList<String> externalOntologySubconceptLabels = new ArrayList<String>();
+		
+    		for(String potentialSubconcept: externalOntologyLabels)
+    		{
+    			String potSubcons= " "+potentialSubconcept+" ";
+    			//implement: once a subconcept "y" of a term "x" is found, if the subconcepts of term "y" is already found, add them all as subconcepts of "x": This is more efficient! 
+			if(t.getLabel().length()>1 && potentialSubconcept.length()>1 && t.getLabel().length() > potentialSubconcept.length() && cons.contains(potSubcons))	//isSubconcept(concept.getLabel(), potentialSubconcept.getLabel())
+				externalOntologySubconceptLabels.add(potentialSubconcept);
+    		}
+    		return externalOntologySubconceptLabels;
+	}
+	
+	public boolean isOverlappingTerms_ExternalOntology(Term t, Term sc, String input_externalOntologyConceptLabels) throws IOException
+	{
+		ArrayList<String> externalOntology_subconcepts = findExternalOntologySubconcepts(t, loadExternalOntologyLabels(input_externalOntologyConceptLabels));
+		
+		String original_label = " "+t.getLabel()+" ";
+		SubConceptTagging sct = new SubConceptTagging();	//because we need countOccurences() method of SubConcept class
+		
+//		System.out.println("original Label: "+original_label);
+//		System.out.println("sc Label: "+sc.getLabel());
+		String id_replaced_label = original_label.replaceAll("(?i)" + Pattern.quote(" "+sc.getLabel()+" "), " "+sc.getID()+" ");
+		
+		for(int j=0; j< externalOntology_subconcepts.size(); j++)
+		{			
+			//if number of occurences of the subcon2 label is different between the original_label and id_replaced_label of subcon1, then an overlap has occured.
+			if((sct.countOccurences(original_label, externalOntology_subconcepts.get(j)) - sct.countOccurences(id_replaced_label, externalOntology_subconcepts.get(j)))!=0)
+				return true;
+		}	
+		return false;
+	}
+	
+	public boolean isOverlappingTerms_ExternalOntology2(Term t, ElementList el_t, int subconceptOfInterest_element_index, String input_externalOntologyConceptLabels) throws IOException
+	{
+		ArrayList<String> externalOntology_subconcepts = findExternalOntologySubconcepts(t, loadExternalOntologyLabels(input_externalOntologyConceptLabels));		
+		
+		//starting and ending string indexes of the ID of subconcept of interest
+		int start_index_of_subconcept_of_interest=getStartIndexOfSubConcept(el_t, subconceptOfInterest_element_index);	
+		int end_index_of_subconcept_of_interest=start_index_of_subconcept_of_interest + term_map.get(el_t.getElement(subconceptOfInterest_element_index).getElementName()).getLabel().length()-1;	//end index = start index + length
+		
+		for(String sc: externalOntology_subconcepts)
+		{
+			int i=-1;
+			while(true)
+			{
+				i=t.getLabel().indexOf(sc, i+1);
+				if(i==-1)
+					break;
+				if(isIndexesOverLapping(start_index_of_subconcept_of_interest, end_index_of_subconcept_of_interest, i, i+sc.length()-1))
+					return true;
+			}
+		}
+		return false;
+	}
+	
+	public Map<String, Set<String>> loadDirectPartOfRelations(String partOf_inputFile) throws IOException
+	{
+		Map<String, Set<String>> partOf_relations = new HashMap<>();
+		BufferedReader br = new BufferedReader(new FileReader(partOf_inputFile));
+		String line;
+		
+		while((line=br.readLine())!=null)
+		{
+			String[] tokens = line.split("\t");
+			if(partOf_relations.containsKey(tokens[0]))
+				partOf_relations.get(tokens[0]).add(tokens[1]);
+			else
+			{
+				Set<String> temp = new HashSet<>();
+				temp.add(tokens[1]);
+				partOf_relations.put(tokens[0], temp);
+			}
+		}
+		
+		br.close();
+		return partOf_relations;
+	}
+	
+	public Set<Term> getAll_ISA_partOf_Parents(Term t, Map<String, Set<String>> directPartOf_relations, Map<Term, Set<Term>> ISA_PartOf_relations)	//recursive method to retrieve all the parents of a Term. The parents of parents etc. found along the way are also saved and tracked so that recalculation is not needed.
+	{
+		Set<Term> parent_set = new HashSet<Term>();
+		Set<Term> temp;
+		
+		if(t.getImmediate_parents().isEmpty() && !directPartOf_relations.containsKey(t.getID()))
+			return parent_set;
+		else
+		{
+			Set<Term> immediate_parents = new HashSet<>();
+			
+			if(!t.getImmediate_parents().isEmpty())
+				immediate_parents.addAll(t.getImmediate_parents());
+			
+			if(directPartOf_relations.containsKey(t.getID()))
+			{
+				for(String con:directPartOf_relations.get(t.getID()))
+					immediate_parents.add(term_map.get(con));
+			}
+			
+			for(Term immed_parent: immediate_parents)
+			{
+				parent_set.add(immed_parent);
+				if(!ISA_PartOf_relations.containsKey(immed_parent))				//if all the transitive parents have not been found before
+				{
+					temp = getAll_ISA_partOf_Parents(immed_parent, directPartOf_relations, ISA_PartOf_relations);
+					if(!temp.isEmpty()) //only if there are parents
+					{
+						ISA_PartOf_relations.put(immed_parent, temp);	//setting all parents here so that no need to calculate again for this concept.				
+						parent_set.addAll(temp);
+					}
+				}
+				else
+					parent_set.addAll(ISA_PartOf_relations.get(immed_parent));
+				
+				//parent_set.addAll(retrieveAllParents(c));
+			}
+			return parent_set;
+		}
+	}
+	
+	public boolean partOf_ISA_exists(Term a, Term b, String partOf_inputFile, Map<Term, Set<Term>> ISA_PartOf_relations) throws IOException
+	{
+		Map<String, Set<String>> directPartOf_relations = loadDirectPartOfRelations(partOf_inputFile);
+		
+		return getAll_ISA_partOf_Parents(a, directPartOf_relations, ISA_PartOf_relations).contains(b);
+		
+	}
+	
+	//this method return true if there exists an antonym pair in the terms passed as parameters
+	public boolean isAntonymPairExistsInTerms(Term t1, Term t2, AntonymTagging at) throws IOException
+	{
+		for(ElementList el1: t1.getElements_with_tags())
+		{
+			for(ElementList el2: t2.getElements_with_tags())
+			{
+				//if(t1.getID().equals("GO_1902879") && t2.getID().equals("GO_1902880"))
+					//System.out.println(el1.ElementListAsAString()+"\t:"+el2.ElementListAsAString()+"\t***"+isAntonymPairExistsInElementLists(el1, el2, at));
+				if(isAntonymPairExistsInElementLists(el1, el2, at))
+					return true;
+			}
+		}
+		return false;
+	}
+	
+	//this method return true if there exists an antonym pair in the elementlists passed as parameters
+	public boolean isAntonymPairExistsInElementLists(ElementList el1, ElementList el2, AntonymTagging at) throws IOException
+	{
+		Set<String> antonyms_found_el1 = new HashSet<>();
+		for(Element e: el1)
+		{
+			if(e.isTagAvailable("ANT"))
+				antonyms_found_el1.add(e.getElementName());
+		}
+		
+		Set<String> antonyms_found_el2 = new HashSet<>();
+		for(Element e: el2)
+		{
+			if(e.isTagAvailable("ANT"))
+				antonyms_found_el2.add(e.getElementName());
+		}
+		
+		if(antonyms_found_el1.isEmpty() || antonyms_found_el2.isEmpty())
+			return false;
+		
+		Map<String, Antonym> anto_pairs = at.getGO_antonym_pairs();
+		for(String ant: antonyms_found_el1)
+		{
+			for(String opposite: anto_pairs.get(ant).getOpposites())
+			{
+				if(antonyms_found_el2.contains(opposite))
+				{
+					//System.out.println(ant+": "+opposite+"***"+el1.ElementListAsAString()+"\t | "+el2.ElementListAsAString());
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+}
