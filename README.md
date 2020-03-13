@@ -15,9 +15,10 @@ Consists of three main components.
 (3) The construction of a set of conditional rules (similar to default rules) for backward subsumption inference aimed at uncovering semantic inconsistencies in GO and other ontological structures.
 
 In the code, we refer to the three conditional rules as follows:
--Sub-concept rule: R2
--Monotonicity rule: R3
--Intersection rule: R4
+
+- Sub-concept rule: R2
+- Monotonicity rule: R3
+- Intersection rule: R4
 
 
 ## Inputs
@@ -34,17 +35,19 @@ Sample files are given for 1-4 in the 'inputs' folder.
 
 ## How to run
 
-Compile the project with maven: 
+Compile the project with maven:
+
 `mvn clean compile assembly:single`
 
 This will create a runnable jar file 'SSIF-0.0.1-jar-with-dependencies.jar' in folder 'target'
 
-The jar file could be run by providing the above mentioned inputs as arguments: 
-`java -jar SSIF-0.0.1-jar-with-dependencies <labelsFile> <hierarchyFile> <WordNetAntonyms> <OtherAntonyms> <POSTaggerModel>`
+The jar file could be run by providing the above mentioned inputs as arguments:
+
+`java -jar target/SSIF-0.0.1-jar-with-dependencies <labelsFile> <hierarchyFile> <WordNetAntonyms> <OtherAntonyms> <POSTaggerModel>`
 
 The program will create a csv file for each conditional rule with the inconsistencies obtained. The format of the each file is as follows: 
 
--Column 1: Potential descendent
--Column 2: Potential ancestor
--Column 3: A description of how the rule was obtained
+- Column 1: Potential descendent
+- Column 2: Potential ancestor
+- Column 3: A description of how the rule was obtained
 
