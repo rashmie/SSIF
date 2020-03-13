@@ -1,11 +1,6 @@
 package ssif.conditionalrules;
 
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Set;
-
 import ssif.model.Term;
 
 //this class holds a mined conditional rule

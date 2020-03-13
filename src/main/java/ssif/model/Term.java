@@ -1,18 +1,7 @@
-
-
 package ssif.model;
-import java.io.BufferedWriter;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Set;
 
 /**
@@ -49,8 +38,6 @@ public class Term implements Serializable{
 		validTerm = true;
 	}
 	
-	
-	
 	public Term(String iD, String label) {		//constructor for invalid terms
 		super();
 		ID = iD;
@@ -61,14 +48,9 @@ public class Term implements Serializable{
 		validTerm = false;
 	}
 
-
-	
-
 	public Set<ElementList> getElements_with_tags() {
 		return elements_with_tags;
 	}
-
-
 
 	public void setElements_with_tags(Set<ElementList> elements_with_tags) {
 		this.elements_with_tags = elements_with_tags;
@@ -261,40 +243,7 @@ public class Term implements Serializable{
 			return this.subhierarchyRoot.equals(t.getSubhierarchyRoot());		//compare subhierarchy roots
 	}
 	
-    public static void serializeItemList(ArrayList<Term> terms, String output)
-    {
-	    	try{
-	    		FileOutputStream fos = new FileOutputStream(output);
-	    		ObjectOutputStream oos = new ObjectOutputStream(fos);
-	    		oos.writeObject(terms);
-	    		oos.close();
-	    		fos.close();
-	    	}catch(IOException ioe){
-	    		ioe.printStackTrace();
-	    	}
-    }
     
-    public static ArrayList<Term> deserializeItemList(String input)
-    {
-	    	ArrayList<Term> terms = new ArrayList<Term>();
-	    	try{
-	    		FileInputStream fis = new FileInputStream(input); 
-	    		ObjectInputStream ois = new ObjectInputStream(fis);
-	    		terms = (ArrayList)ois.readObject();
-	    		ois.close();
-	    		fis.close();
-	    	}
-	    	catch(IOException ioe){
-	    		ioe.printStackTrace();
-	    	}
-	    	catch(ClassNotFoundException c){
-	    		System.out.println("Class not found");
-	            c.printStackTrace();
-	    	}
-	    	return terms;
-    }
-
-
 	@Override
 	public int hashCode() {
 		final int prime = 31;

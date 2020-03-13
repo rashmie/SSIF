@@ -1,18 +1,6 @@
 package ssif.conditionalrules;
 
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
-import au.com.bytecode.opencsv.CSVWriter;
-import edu.stanford.nlp.util.SystemUtils;
 import ssif.exhaustiveSSIF.tagging.Tagging;
-import ssif.model.Antonym;
 import ssif.model.Element;
 import ssif.model.ElementList;
 import ssif.model.Term;
@@ -29,11 +17,6 @@ public abstract class R3 extends ConditionalRule {
 		super(tagged_terms);
 		
 	}
-	
-//	public R3()
-//	{
-//		
-//	}
 	
 	public Term concatenationExist(Term t1, Term t2)
 	{
@@ -68,12 +51,7 @@ public abstract class R3 extends ConditionalRule {
 				r3 = true;
 				continue;
 			}
-//			//if the elements are an antonym pair.
-//			else if(anto_pairs.containsKey(element1_name) && anto_pairs.get(element1_name).isOpposite(element2_name))			//else if(el1.getElement(i).getTags().contains("ANT") && el2.getElement(i).getTags().contains("ANT") && tagged_terms.getGO_antonym_pairs().get(el1.getElement(i).getElementName()).equals(el2.getElement(i).getElementName()))
-//			{
-//				antonyms = true;
-//				continue;
-//			}
+
 			//if the elements have a subsumption relation in between
 			else if(element1.isSubconcept() && element2.isSubconcept())	
 			{

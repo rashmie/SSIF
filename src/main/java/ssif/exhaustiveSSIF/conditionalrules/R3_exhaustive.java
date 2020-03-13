@@ -21,9 +21,9 @@ public class R3_exhaustive extends R3 {
 		
 	}
 
-	public void runR3(String output, boolean obtainExistingRules, String labels_file, String antonym_input, String other_antonyms_input) throws IOException		//String input_externalOntologyConceptLabels, String partOf_inputFile
+	public void runR3(String output, boolean obtainExistingRules, String labels_file, String antonym_input, String other_antonyms_input, String taggerModel_file) throws IOException		//String input_externalOntologyConceptLabels, String partOf_inputFile
 	{
-		AntonymTagging at = new AntonymTagging(labels_file, antonym_input, other_antonyms_input);
+		AntonymTagging at = new AntonymTagging(labels_file, antonym_input, other_antonyms_input, taggerModel_file);
 		at.loadWordnetAntonyms();
 		at.findAntonymPairsInGO();
 		

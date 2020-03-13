@@ -5,16 +5,12 @@ package ssif.exhaustiveSSIF.conditionalrules;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 
-import au.com.bytecode.opencsv.CSVWriter;
 import ssif.conditionalrules.ConditionalRule;
 import ssif.conditionalrules.Inconsistency;
 import ssif.exhaustiveSSIF.tagging.AntonymTagging;
@@ -47,9 +43,9 @@ public class R4_exhaustive extends ConditionalRule {
 	}
 	
 	//Efficient R4: takes around 40s
-	public Set<Inconsistency> runR4(String output, boolean obtainExistingRules, String labels_file, String antonym_input, String other_antonyms_input) throws IOException	//String partOf_inputFile
+	public Set<Inconsistency> runR4(String output, boolean obtainExistingRules, String labels_file, String antonym_input, String other_antonyms_input, String taggerModel_file) throws IOException	//String partOf_inputFile
 	{
-		AntonymTagging at = new AntonymTagging(labels_file, antonym_input, other_antonyms_input);
+		AntonymTagging at = new AntonymTagging(labels_file, antonym_input, other_antonyms_input, taggerModel_file);
 		at.loadWordnetAntonyms();
 		at.findAntonymPairsInGO();
 		
@@ -57,7 +53,6 @@ public class R4_exhaustive extends ConditionalRule {
 		String inters;
 		Term intersect_term;
 		Set<String> considered_y_z = new HashSet<>();	//stores already considered y and z pairs
-		//Map<Term, Set<Term>> ISA_PartOf_relations = new HashMap<>();
 		for(Term x: tagged_terms.getTerms())
 		{
 			if(!x.isValidTerm())

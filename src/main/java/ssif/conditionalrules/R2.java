@@ -1,19 +1,11 @@
 package ssif.conditionalrules;
 
-import java.awt.image.WritableRaster;
-import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.Table;
-import com.google.common.collect.Table.Cell;
-
 import au.com.bytecode.opencsv.CSVWriter;
 import ssif.exhaustiveSSIF.tagging.Tagging;
 import ssif.model.Element;
@@ -58,7 +50,6 @@ public abstract class R2 extends ConditionalRule {
 			if(modifier_tags!=null && !el.getElement(i).isAnyTagAvailable(modifier_tags))
 				return false;
 		}
-		//System.out.println("inside R2 type method: "+el.getElement(el.getSize()-1));
 		return true;
 	}
 	
@@ -76,32 +67,13 @@ public abstract class R2 extends ConditionalRule {
 		
 		Table<Integer, Integer, ElementList>  glcs_table = GLCS_table(el1, el2);
 		ElementList glcs = glcs_table.get(0, 0);
-		//ElementList glcs_2 ;
-		
-		//System.out.println(el1.ElementListAsAString()+"\t ***:"+el2.ElementListAsAString());
-		//if((glcs_2 = findGLCS(el1, el2))!=null)
-			//System.out.println(findGLCS(el1, el2).ElementListAsAString());
 		if(!el2.equals(glcs))
 			return false;
-		
-		//System.out.println(glcs_table.size());
-		
-//		for(Cell<Integer, Integer, ElementList> cell: glcs_table.cellSet())
-//		{
-//			System.out.println("Size: "+glcs_table.cellSet().size());
-//			System.out.println(cell.getRowKey()+" *** "+cell.getColumnKey()+" *** "+ cell.getValue().ElementListAsAString());
-//		}
+
 		
 		boolean valid_uniq_found = false;
 		for(int i=el1.getSize()-2; i>=0; i--)
 		{
-			//if GLCS(substring at the i'th position of el1, entire el2) = GLCS(substring at the (i+1)th position of el1, entire el2),
-			//that means element at i'th position of el1 is unique to el1. If all unique element of el1 has one of the preferred tags, then it belongs to R2_plus_plus type
-			
-			//System.out.println(glcs_table.get(i, el2.getSize()));
-			//System.out.println(glcs_table.get(i+1, el2.getSize())); 
-			//System.out.println(el1.getElement(i).isAnyTagAvailable(modifier_tags));
-			//System.out.println(glcs_table.contains(i, 0)+"\t***: "+ glcs_table.contains(i+1, 0));
 			if(glcs_table.contains(i, 0) && glcs_table.contains(i+1, 0) && glcs_table.get(i, 0).equals(glcs_table.get(i+1, 0)))
 			{
 				if(el1.getElement(i).isAnyTagAvailable(modifier_tags))

@@ -1,13 +1,10 @@
 package ssif.exhaustiveSSIF.tagging;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -27,14 +24,9 @@ public class SubConceptTagging extends POSTagging{
 	{
 		
 	}
-	protected SubConceptTagging(String labels_file) {
-		super(labels_file);
+	protected SubConceptTagging(String labels_file, String taggerModel_file) {
+		super(labels_file, taggerModel_file);
 	}
-
-	
-//	protected SubConceptTagging() {
-//		
-//	}
 
 	private void subconceptSearch() throws IOException		//does not consider antonyms at the moment
     {
@@ -156,7 +148,7 @@ public class SubConceptTagging extends POSTagging{
 	
 	//For a term "t", this method replaces the words in the label of its subconcepts in "t" with their id. For example: GO_1901265: nucleoside phosphate binding =  nucleoside phosphate GO_0005488, where GO_0005488: phosphate binding is a subconcept of GO_1901265 
 	//Note that there might me multiple subconcepts some of which are overlapping and multiple representations of this replacement will be maintained in such scenarios
-	public void labelWithSubconceptID_2()
+	public void labelWithSubconceptID()
 	{
 		Set<Term> allSubconcepts;
 		
@@ -205,69 +197,7 @@ public class SubConceptTagging extends POSTagging{
     			//System.out.println("# of Terms considered: "+i+"\n");
 		}
 	}
-	
-	
-	
-//	//for a particular term "cons", permutes the subconcepts in the list "arr" so that different subconcept taggings could be obtained. This is especially necessary when there are overlapping subconcepts.
-//	//the original label is replaced with subconcept IDs in this method.
-//	//different permutations change the order of the original label is replaced by the subconcept ID.
-//	private void permute_and_replace_label_with_subconcept_ID(ArrayList<Term> arr, int index, Term cons)
-//	{
-//        if(index >= arr.size() - 1){ //If at the last element - nothing left to permute
-//            
-//            String id_replaced_label = " "+cons.getLabel()+" ";
-//            for(Term subcons: arr)
-//            		id_replaced_label= id_replaced_label.replaceAll("(?i)" + Pattern.quote(" "+subcons.getLabel()+" "), " "+subcons.getID()+" ");
-//            
-//            cons.addLabel_with_subconcept_ID(id_replaced_label.trim());
-//            return;
-//        }
-//
-//        for(int i = index; i < arr.size(); i++)	//For each index in the sub array arr[index...end]
-//        { 
-//            //Swap the elements at indices index and i
-//            Term t = arr.get(index);
-//            arr.set(index, arr.get(i));
-//            arr.set(i, t);
-//
-//            //Recurse on the sub array arr[index+1...end]
-//            permute_and_replace_label_with_subconcept_ID(arr, index+1, cons);
-//            //Swap the elements back
-//            t = arr.get(index);
-//            arr.set(index, arr.get(i));
-//            arr.set(i, t);
-//        }
-//    }
-	
-//	private void labelWithSubconceptID()
-//	{
-//		Set<Term> subconcepts;
-//		String id_replaced_label;
-//		
-//		for(Term t: terms)
-//		{
-//			if(!t.isValidTerm())
-//				continue;
-//			
-//    			subconcepts = t.getSubconcepts();
-//    				
-//    			ArrayList<Term> subcons = new ArrayList<>(subconcepts);
-//    			
-//    			//permute_and_replace_label_with_subconcept_ID(subcons, 0, t);
-//			for(Term sc1: subconcepts)
-//			{
-//		    		id_replaced_label= " "+t.getLabel()+" ";
-//		    		id_replaced_label= id_replaced_label.replaceAll("(?i)" + Pattern.quote(" "+sc1.getLabel()+" "), " "+sc1.getID()+" ");
-//		    		for(Term sc2: subconcepts)
-//		    		{ 
-//		    			if(!sc1.equals(sc2))
-//		    				id_replaced_label= id_replaced_label.replaceAll("(?i)" + Pattern.quote(" "+sc2.getLabel()+" "), " "+sc2.getID()+" ");
-//		    		}
-//		    		t.addLabel_with_subconcept_ID(id_replaced_label.trim());
-//			}
-//		}
-//	}
-	
+		
 	//This method fills the "elements_with_tags" of each "Term", so that SC tag will be used for subconcepts.
 	private void addSubConceptTag()
 	{	
@@ -332,50 +262,8 @@ public class SubConceptTagging extends POSTagging{
 	public void runSubconceptTagging() throws IOException
 	{
 		subconceptSearch();
-		labelWithSubconceptID_2();
+		labelWithSubconceptID();
 		//labelWithSubconceptID();
 		addSubConceptTag();
-	}
-	
-	public void writeSubconceptsToFile(String outputFile) throws IOException
-    {
-	    	BufferedWriter bw = new BufferedWriter(new FileWriter(outputFile));
-	    	Set<Term> subconcepts;
-	    	String line_to_write;
-	    	for(Term t: terms)
-	    	{
-	    		line_to_write = "";
-	    		line_to_write+= t.getID()+":\t";
-	    		subconcepts = t.getSubconcepts();
-	    		
-	    		for(Term sc: subconcepts)
-	    		{
-	    			line_to_write+= sc.getID()+" ";
-	    		}
-	    		
-	    		bw.write(line_to_write.trim());
-	    		bw.write("\n");
-	    	}
-	    	bw.close();
-    }
-		
-	public static void main(String[] args) throws IOException
-	{
-		long startTime = System.currentTimeMillis();
-    	
-//		SubConceptTagging st = new SubConceptTagging("GO_labels_test.txt");
-//		st.runPOSTaggin();
-//		st.runSubconceptTagging();
-		
-		
-//		st.writeTags("test/SubConceptTagging.txt");
-		
-//		String a= " mesenchymal stem cell differentiation involved in nephron morphogenesis stem cell differentiation ";
-//		String b= " mesenchymal stem cell differentiation ";
-//		
-//		System.out.println(countOccurences(a, b));
-		
-		long endTime = System.currentTimeMillis();
-		System.out.println("Elapsed Time: "+(endTime-startTime)/1000+" seconds");
 	}
 }

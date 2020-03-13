@@ -6,9 +6,6 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
-import java.util.ArrayList;
-
-import ssif.model.Term;
 
 /**
  * @author Rashmie Abeysinghe
@@ -16,19 +13,15 @@ import ssif.model.Term;
  */
 public class Tagging extends AntonymTagging implements Serializable {
 
-//	public Tagging() {
-//		super();
-//		// TODO Auto-generated constructor stub
-//	}
 
-	public Tagging(String labels_file, String wordnetAntonymFile, String antoFile) {
-		super(labels_file, wordnetAntonymFile, antoFile);
+	public Tagging(String labels_file, String wordnetAntonymFile, String antoFile, String taggerModel_file) {
+		super(labels_file, wordnetAntonymFile, antoFile, taggerModel_file);
 		// TODO Auto-generated constructor stub
 	}
 
 	public void runTagging() throws IOException
 	{
-		runPOSTaggin2();
+		runPOSTaggin();
 		System.out.println("POS Tagging Done!");
 		runSubconceptTagging();
 		System.out.println("Subconcept Tagging Done!");

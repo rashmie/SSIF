@@ -2,6 +2,7 @@ package ssif.exhaustiveSSIF.conditionalrules;
 
 import java.io.IOException;
 import java.util.Set;
+
 import ssif.conditionalrules.Inconsistency;
 import ssif.conditionalrules.R2;
 import ssif.exhaustiveSSIF.tagging.AntonymTagging;
@@ -23,9 +24,9 @@ public class R2_exhaustive extends R2 {
 	
 	//the most recent version of R2
 	//xabcy is_a y when, x,a,b,c,.. has either of NN,JJ,SC tags
-	public Set<Inconsistency> runR2(String output, Set<String> modifier_tags, boolean obtainExistingRules, String antonym_input, String other_antonyms_input, String labels_file) throws IOException	//String input_externalOntologyConceptLabels, String partOf_inputFile
+	public Set<Inconsistency> runR2(String output, Set<String> modifier_tags, boolean obtainExistingRules, String antonym_input, String other_antonyms_input, String labels_file, String taggerModel_file) throws IOException	//String input_externalOntologyConceptLabels, String partOf_inputFile
 	{
-		AntonymTagging at = new AntonymTagging(labels_file, antonym_input, other_antonyms_input);
+		AntonymTagging at = new AntonymTagging(labels_file, antonym_input, other_antonyms_input, taggerModel_file);
 		at.loadWordnetAntonyms();
 		at.findAntonymPairsInGO();
 		

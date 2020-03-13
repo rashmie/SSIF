@@ -1,21 +1,18 @@
 package ssif.exhaustiveSSIF.tagging;
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import edu.stanford.nlp.ling.CoreLabel;
-import ssif.model.Antonym;
-import ssif.model.Element;
-import ssif.model.ElementList;
-import ssif.model.Term;
+//import ssif.model.Antonym;
+//import ssif.model.Element;
+//import ssif.model.ElementList;
+import ssif.model.*;
 
 /**
  * @author Rashmie Abeysinghe
@@ -28,15 +25,11 @@ public class AntonymTagging extends SubConceptTagging implements Serializable {
 	private HashMap<String, Antonym> antonym_pairs;
 	private HashMap<String, Antonym> GO_antonym_pairs;
 	
-	public AntonymTagging(String labels_file, String wordnetAntonymFile, String antoFile) {
-		super(labels_file);
+	public AntonymTagging(String labels_file, String wordnetAntonymFile, String antoFile, String taggerModel_file) {
+		super(labels_file, taggerModel_file);
 		this.wordnetAntonymFile = wordnetAntonymFile;
 		this.antoFile = antoFile;
 	}
-	
-//	protected AntonymTagging() {
-//		
-//	}
 
 	public HashMap<String, Antonym> getGO_antonym_pairs() {
 		return GO_antonym_pairs;
@@ -102,7 +95,6 @@ public class AntonymTagging extends SubConceptTagging implements Serializable {
 				}
 			}
 		}
-		//System.out.println("Number of GO Antonym Pairs: "+GO_antonym_pairs.size());
 		br.close();
 	}
 	
@@ -130,30 +122,19 @@ public class AntonymTagging extends SubConceptTagging implements Serializable {
 				{
 					for(Element e: el)
 					{
-						//System.out.println(e.getElementName()+"/"+e.getTags());
 						if(GO_antonym_pairs.containsKey(e.getElementName()))
 						{
 							tagListForWord = new HashSet<String>(e.getTags());		//multiple ANT tags if not for this
 							//tagListForWord = e.getTags();
 							tagListForWord.add("ANT");	
 							e.setTags(tagListForWord);
-							//System.out.println(e.getTags()+"\t");
 						}
 					}
 				}
 				t.setElements_with_tags(elements_with_antonym_tags);
-//				for(ElementList el: elements_with_antonym_tags)
-//				{
-//					for(Element e: el)
-//					{
-//						System.out.println(e.getElementName()+"\t"+e.getTags());
-//					}
-//					System.out.println("\n\n");
-//				}
 			}
 			else		//this is not really necessary as even when there are no subconcepts, the already found POS tags will be added to "elements_with_subconcept_tags"
 			{
-				//System.out.println("Yaaaayyy");
 				POS_temp = new ElementList(t.getFirstElementListOf_elements_with_tags().getList_of_elements());
 				for(Element e: POS_temp)
 				{
@@ -171,20 +152,5 @@ public class AntonymTagging extends SubConceptTagging implements Serializable {
 			}
 			
 		}
-	}
-	
-	 public static void main(String[] args) throws IOException
-    {
-	    	long startTime = System.currentTimeMillis();
-	    	
-    		AntonymTagging at = new AntonymTagging("GO_labels.txt", "wordnet_antonyms.txt", "other_antonyms.txt");
-    		at.runPOSTaggin();
-    		at.runSubconceptTagging();
-    		at.runAntonymTagging();
-    		at.writeTags("test/AntonymTagging.txt");
-			
-		long endTime = System.currentTimeMillis();
-		System.out.println("Elapsed Time: "+(endTime-startTime)/1000+" seconds");
-    }
-	
+	}	
 }
